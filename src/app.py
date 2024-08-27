@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from werkzeug.utils import secure_filename
-from data.data_preprocessing import preprocess_data, merge_files
+from data.data_preprocessing import preprocess_data, merge_files_by_year, merge_files_by_variable
 from models.model import BigDataModel
 from utils.helpers import setup_logging, get_timestamp, create_directory_if_not_exists
 import pandas as pd
@@ -38,8 +38,70 @@ def upload_files():
     if not file_paths:
         return jsonify({"status": "error", "message": "No valid files uploaded"}), 400
     
-    merged_file_path = merge_files(file_paths)
-    return jsonify({"status": "success", "message": "Files uploaded and merged successfully", "path": merged_file_path}), 200
+    return jsonify({"status": "success", "message": "Files uploaded successfully", "paths": file_paths}), 200
+
+@app.route('/merge', methods=['POST'])
+def merge_files():
+    file_paths = request.json.get('file_paths')
+    merge_type = request.json.get('merge_type')
+    
+    if not file_paths:
+        return jsonify({"status": "error", "message": "No file paths provided"}), 400
+    
+    try:
+        if merge_type == 'by_year':
+            merged_file_path = merge_files_by_year(file_paths)
+            visualizations = visualize_merge_by_year(merged_file_path)
+        elif merge_type == 'by_variable':
+            merged_file_path = merge_files_by_variable(file_paths)
+            visualizations = visualize_merge_by_variable(merged_file_path)
+        else:
+            return jsonify({"status": "error", "message": "Invalid merge type"}), 400
+        
+        return jsonify({
+            "status": "success", 
+            "message": "Files merged successfully",
+            "path": merged_file_path,
+            "visualizations": visualizations
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+def visualize_merge_by_year(file_path):
+    df = pd.read_csv(file_path)
+    visualizations = {}
+    
+    # 创建年度数据总量柱状图
+    fig_yearly_data = px.bar(df.groupby('year').size().reset_index(name='count'), 
+                             x='year', y='count', title='Yearly Data Count')
+    visualizations['yearly_data_count'] = fig_yearly_data.to_json()
+    
+    # 为每个数值列创建年度趋势线图
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    for col in numeric_cols:
+        if col != 'year':
+            fig_trend = px.line(df.groupby('year')[col].mean().reset_index(), 
+                                x='year', y=col, title=f'{col} Yearly Trend')
+            visualizations[f'{col}_yearly_trend'] = fig_trend.to_json()
+    
+    return visualizations
+
+def visualize_merge_by_variable(file_path):
+    df = pd.read_csv(file_path)
+    visualizations = {}
+    
+    # 创建变量数据分布箱型图
+    fig_distribution = px.box(df.melt(var_name='Variable', value_name='Value'), 
+                              x='Variable', y='Value', title='Variable Distribution')
+    visualizations['variable_distribution'] = fig_distribution.to_json()
+    
+    # 创建变量间相关性热力图
+    corr = df.corr()
+    fig_heatmap = px.imshow(corr, labels=dict(color="Correlation"), 
+                            x=corr.columns, y=corr.columns, title='Variable Correlation Heatmap')
+    visualizations['correlation_heatmap'] = fig_heatmap.to_json()
+    
+    return visualizations
 
 @app.route('/process', methods=['POST'])
 def process_data():
