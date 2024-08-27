@@ -1,0 +1,27 @@
+# 忽略数据文件,除了示例文件
+data/raw/*
+!data/raw/sample_raw_data.csv
+!data/raw/README.md
+
+data/processed/*
+!data/processed/sample_processed_data.csv
+!data/processed/README.md
+
+# 忽略日志文件
+logs/
+
+# 忽略Python编译文件
+__pycache__/
+*.py[cod]
+
+# 忽略环境文件
+.env
+
+# 忽略IDE和编辑器文件
+.vscode/
+.idea/
+*.swp
+
+# 忽略操作系统生成的文件
+.DS_Store
+Thumbs.db
