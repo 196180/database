@@ -1,61 +1,41 @@
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
 
-def preprocess_data(input_path, output_path):
+def merge_files(file_paths):
+    dfs = [pd.read_csv(file_path) for file_path in file_paths]
+    merged_df = pd.concat(dfs, ignore_index=True)
+    merged_file_path = 'data/raw/merged_data.csv'
+    merged_df.to_csv(merged_file_path, index=False)
+    return merged_file_path
+
+def preprocess_data(input_path, output_path, selected_variables=None):
     """
     对数据进行预处理
     """
     # 读取数据
     df = pd.read_csv(input_path)
     
-    # 定义特征类型
-    numeric_features = ['age', 'income', 'credit_score']
-    categorical_features = ['education', 'occupation', 'marital_status']
+    # 如果提供了选定的变量，只保留这些变量
+    if selected_variables:
+        df = df[selected_variables + ['target']]
     
-    # 创建预处理管道
-    numeric_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='median')),
-        ('scaler', StandardScaler())
-    ])
+    # 处理缺失值
+    imputer = SimpleImputer(strategy='mean')
+    df_imputed = pd.DataFrame(imputer.fit_transform(df), columns=df.columns)
     
-    categorical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
-        ('onehot', OneHotEncoder(handle_unknown='ignore'))
-    ])
+    # 标准化数值特征
+    scaler = StandardScaler()
+    numeric_columns = df_imputed.select_dtypes(include=['float64', 'int64']).columns
+    df_imputed[numeric_columns] = scaler.fit_transform(df_imputed[numeric_columns])
     
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', numeric_transformer, numeric_features),
-            ('cat', categorical_transformer, categorical_features)
-        ])
-    
-    # 拟合和转换数据
-    X = df.drop('target', axis=1)
-    y = df['target']
-    X_processed = preprocessor.fit_transform(X)
-    
-    # 创建特征名称
-    feature_names = (numeric_features + 
-                     preprocessor.named_transformers_['cat']
-                     .named_steps['onehot']
-                     .get_feature_names(categorical_features).tolist())
-    
-    # 转换为DataFrame
-    X_processed_df = pd.DataFrame(X_processed, columns=feature_names)
-    
-    # 添加目标变量
-    X_processed_df['target'] = y
-    
-    # 特征工程
-    X_processed_df['age_group'] = pd.cut(X_processed_df['age'], bins=[0, 18, 30, 50, 70, 100], labels=['0-18', '19-30', '31-50', '51-70', '71+'])
-    X_processed_df['high_income'] = (X_processed_df['income'] > X_processed_df['income'].median()).astype(int)
+    # 如果存在 'year' 列，将其转换为类别型
+    if 'year' in df_imputed.columns:
+        df_imputed['year'] = df_imputed['year'].astype('category')
     
     # 保存处理后的数据
-    X_processed_df.to_csv(output_path, index=False)
+    df_imputed.to_csv(output_path, index=False)
     print(f"预处理后的数据已保存到 {output_path}")
 
 if __name__ == "__main__":
