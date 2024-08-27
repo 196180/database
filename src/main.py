@@ -1,3 +1,4 @@
+from flask import Flask, jsonify
 from data.data_acquisition import fetch_data, save_data
 from data.data_preprocessing import preprocess_data
 from models.model import BigDataModel
@@ -7,6 +8,16 @@ import logging
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+app = Flask(__name__)
+
+@app.route('/process', methods=['GET'])
+def process_data():
+    try:
+        main()
+        return jsonify({"status": "success", "message": "Data processed and model trained successfully"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 def main():
     setup_logging()
@@ -70,4 +81,4 @@ def main():
     logging.info("Process completed successfully.")
 
 if __name__ == "__main__":
-    main()
+    app.run(host='0.0.0.0', port=8000)
