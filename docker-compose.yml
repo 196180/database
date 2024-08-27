@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  database:
+    build: .
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./visualizations:/app/visualizations
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8000:8000"
