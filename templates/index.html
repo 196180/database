@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Big Data Model</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Big Data Model</h1>
+    <form id="upload-form">
+        <input type="file" name="file" accept=".csv,.txt">
+        <button type="submit">Upload and Process</button>
+    </form>
+    <div id="status"></div>
+    <div id="visualizations">
+        <div id="heatmap"></div>
+        <div id="target-distribution"></div>
+        <div id="feature-importance"></div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            $('#upload-form').submit(function(e) {
+                e.preventDefault();
+                var formData = new FormData(this);
+                
+                $.ajax({
+                    url: '/upload',
+                    type: 'POST',
+                    data: formData,
+                    success: function(data) {
+                        $('#status').text('File uploaded successfully. Processing...');
+                        processData(data.path);
+                    },
+                    error: function() {
+                        $('#status').text('Error uploading file');
+                    },
+                    cache: false,
+                    contentType: false,
+                    processData: false
+                });
+            });
+
+            function processData(filePath) {
+                $.ajax({
+                    url: '/process',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({file_path: filePath}),
+                    success: function(data) {
+                        $('#status').text('Data processed successfully');
+                        displayVisualizations(data.visualizations);
+                    },
+                    error: function() {
+                        $('#status').text('Error processing data');
+                    }
+                });
+            }
+
+            function displayVisualizations(visualizations) {
+                Plotly.newPlot('heatmap', JSON.parse(visualizations.heatmap));
+                Plotly.newPlot('target-distribution', JSON.parse(visualizations.target_distribution));
+                Plotly.newPlot('feature-importance', JSON.parse(visualizations.feature_importance));
+            }
+        });
+    </script>
+</body>
+</html>
