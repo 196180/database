@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from werkzeug.utils import secure_filename
-from data.data_preprocessing import preprocess_data
+from data.data_preprocessing import preprocess_data, merge_files
 from models.model import BigDataModel
 from utils.helpers import setup_logging, get_timestamp, create_directory_if_not_exists
 import pandas as pd
@@ -21,23 +21,30 @@ def index():
     return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return jsonify({"status": "error", "message": "No file part"}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"status": "error", "message": "No selected file"}), 400
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        create_directory_if_not_exists(app.config['UPLOAD_FOLDER'])
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(file_path)
-        return jsonify({"status": "success", "message": "File uploaded successfully", "path": file_path}), 200
-    return jsonify({"status": "error", "message": "File type not allowed"}), 400
+def upload_files():
+    uploaded_files = request.files.getlist("file")
+    if not uploaded_files:
+        return jsonify({"status": "error", "message": "No files uploaded"}), 400
+    
+    file_paths = []
+    for file in uploaded_files:
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            create_directory_if_not_exists(app.config['UPLOAD_FOLDER'])
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(file_path)
+            file_paths.append(file_path)
+    
+    if not file_paths:
+        return jsonify({"status": "error", "message": "No valid files uploaded"}), 400
+    
+    merged_file_path = merge_files(file_paths)
+    return jsonify({"status": "success", "message": "Files uploaded and merged successfully", "path": merged_file_path}), 200
 
 @app.route('/process', methods=['POST'])
 def process_data():
     file_path = request.json.get('file_path')
+    selected_variables = request.json.get('selected_variables', [])
     if not file_path:
         return jsonify({"status": "error", "message": "No file path provided"}), 400
     
@@ -47,7 +54,7 @@ def process_data():
         create_directory_if_not_exists(processed_data_dir)
         processed_data_path = os.path.join(processed_data_dir, f"preprocessed_data_{get_timestamp()}.csv")
         
-        preprocess_data(file_path, processed_data_path)
+        preprocess_data(file_path, processed_data_path, selected_variables)
         
         # 模型训练
         df = pd.read_csv(processed_data_path)
@@ -64,7 +71,7 @@ def process_data():
         model.save(model_path)
         
         # 生成可视化
-        visualizations = generate_visualizations(df)
+        visualizations = generate_visualizations(df, selected_variables)
         
         return jsonify({
             "status": "success", 
@@ -74,26 +81,37 @@ def process_data():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-def generate_visualizations(df):
+def generate_visualizations(df, selected_variables):
+    visualizations = {}
+    
+    # 按年份分组的数据趋势
+    if 'year' in df.columns:
+        for var in selected_variables:
+            if var in df.columns:
+                fig = px.line(df.groupby('year')[var].mean().reset_index(), x='year', y=var)
+                fig.update_layout(title=f'{var} Trend Over Years')
+                visualizations[f'{var}_trend'] = fig.to_json()
+    
     # 相关性热力图
-    corr = df.corr()
+    corr = df[selected_variables].corr()
     fig_heatmap = px.imshow(corr, labels=dict(color="Correlation"), x=corr.columns, y=corr.columns)
     fig_heatmap.update_layout(title='Feature Correlation Heatmap')
+    visualizations['heatmap'] = fig_heatmap.to_json()
     
     # 目标变量分布
-    fig_target = px.bar(df['target'].value_counts().reset_index(), x='index', y='target', labels={'index': 'Target', 'target': 'Count'})
-    fig_target.update_layout(title='Target Variable Distribution')
+    if 'target' in df.columns:
+        fig_target = px.bar(df['target'].value_counts().reset_index(), x='index', y='target', labels={'index': 'Target', 'target': 'Count'})
+        fig_target.update_layout(title='Target Variable Distribution')
+        visualizations['target_distribution'] = fig_target.to_json()
     
-    # 特征重要性（假设我们有特征重要性的数据）
-    feature_importance = model.model.feature_importances_
-    fig_importance = px.bar(x=df.columns[:-1], y=feature_importance, labels={'x': 'Features', 'y': 'Importance'})
-    fig_importance.update_layout(title='Feature Importance')
+    # 特征重要性
+    if hasattr(model.model, 'feature_importances_'):
+        feature_importance = model.model.feature_importances_
+        fig_importance = px.bar(x=df.columns[:-1], y=feature_importance, labels={'x': 'Features', 'y': 'Importance'})
+        fig_importance.update_layout(title='Feature Importance')
+        visualizations['feature_importance'] = fig_importance.to_json()
     
-    return {
-        'heatmap': fig_heatmap.to_json(),
-        'target_distribution': fig_target.to_json(),
-        'feature_importance': fig_importance.to_json()
-    }
+    return visualizations
 
 @app.route('/visualizations/<path:filename>')
 def serve_visualization(filename):
