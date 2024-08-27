@@ -11,9 +11,13 @@
     <h1>Big Data Model</h1>
     <form id="upload-form">
         <input type="file" name="file" accept=".csv,.txt" multiple>
-        <button type="submit">Upload and Merge Files</button>
+        <button type="submit">Upload Files</button>
     </form>
     <div id="status"></div>
+    <div id="merge-options" style="display:none;">
+        <button id="merge-by-year">Merge by Year</button>
+        <button id="merge-by-variable">Merge by Variable</button>
+    </div>
     <div id="variable-selection" style="display:none;">
         <h2>Select Variables for Analysis</h2>
         <div id="variable-checkboxes"></div>
@@ -23,6 +27,7 @@
 
     <script>
         $(document).ready(function() {
+            let uploadedFilePaths = [];
             let mergedFilePath = '';
             let availableVariables = [];
 
@@ -35,9 +40,9 @@
                     type: 'POST',
                     data: formData,
                     success: function(data) {
-                        $('#status').text('Files uploaded and merged successfully. Select variables for analysis.');
-                        mergedFilePath = data.path;
-                        loadVariables(mergedFilePath);
+                        $('#status').text('Files uploaded successfully. Choose merge option.');
+                        uploadedFilePaths = data.paths;
+                        $('#merge-options').show();
                     },
                     error: function() {
                         $('#status').text('Error uploading files');
@@ -47,6 +52,30 @@
                     processData: false
                 });
             });
+
+            $('#merge-by-year, #merge-by-variable').click(function() {
+                let mergeType = $(this).attr('id') === 'merge-by-year' ? 'by_year' : 'by_variable';
+                mergeFiles(uploadedFilePaths, mergeType);
+            });
+
+            function mergeFiles(filePaths, mergeType) {
+                $('#status').text('Merging files...');
+                $.ajax({
+                    url: '/merge',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({file_paths: filePaths, merge_type: mergeType}),
+                    success: function(data) {
+                        $('#status').text('Files merged successfully. Select variables for analysis.');
+                        mergedFilePath = data.path;
+                        displayVisualizations(data.visualizations);
+                        loadVariables(mergedFilePath);
+                    },
+                    error: function() {
+                        $('#status').text('Error merging files');
+                    }
+                });
+            }
 
             function loadVariables(filePath) {
                 $.ajax({
