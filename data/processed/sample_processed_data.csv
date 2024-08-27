@@ -1,0 +1,6 @@
+id,normalized_feature1,normalized_feature2,normalized_feature3,encoded_target
+1,0.58,-0.22,-1.41,0
+2,-0.22,0.58,-0.22,1
+3,-1.41,-0.22,0.58,0
+4,0.58,-1.41,-0.22,1
+5,-0.22,-0.22,0.58,0
