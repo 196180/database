@@ -10,18 +10,22 @@
 <body>
     <h1>Big Data Model</h1>
     <form id="upload-form">
-        <input type="file" name="file" accept=".csv,.txt">
-        <button type="submit">Upload and Process</button>
+        <input type="file" name="file" accept=".csv,.txt" multiple>
+        <button type="submit">Upload and Merge Files</button>
     </form>
     <div id="status"></div>
-    <div id="visualizations">
-        <div id="heatmap"></div>
-        <div id="target-distribution"></div>
-        <div id="feature-importance"></div>
+    <div id="variable-selection" style="display:none;">
+        <h2>Select Variables for Analysis</h2>
+        <div id="variable-checkboxes"></div>
+        <button id="process-button">Process Data</button>
     </div>
+    <div id="visualizations"></div>
 
     <script>
         $(document).ready(function() {
+            let mergedFilePath = '';
+            let availableVariables = [];
+
             $('#upload-form').submit(function(e) {
                 e.preventDefault();
                 var formData = new FormData(this);
@@ -31,11 +35,12 @@
                     type: 'POST',
                     data: formData,
                     success: function(data) {
-                        $('#status').text('File uploaded successfully. Processing...');
-                        processData(data.path);
+                        $('#status').text('Files uploaded and merged successfully. Select variables for analysis.');
+                        mergedFilePath = data.path;
+                        loadVariables(mergedFilePath);
                     },
                     error: function() {
-                        $('#status').text('Error uploading file');
+                        $('#status').text('Error uploading files');
                     },
                     cache: false,
                     contentType: false,
@@ -43,12 +48,50 @@
                 });
             });
 
-            function processData(filePath) {
+            function loadVariables(filePath) {
                 $.ajax({
                     url: '/process',
                     type: 'POST',
                     contentType: 'application/json',
                     data: JSON.stringify({file_path: filePath}),
+                    success: function(data) {
+                        availableVariables = Object.keys(data.variables);
+                        displayVariableSelection(availableVariables);
+                    },
+                    error: function() {
+                        $('#status').text('Error loading variables');
+                    }
+                });
+            }
+
+            function displayVariableSelection(variables) {
+                let checkboxes = variables.map(v => 
+                    `<label><input type="checkbox" name="variable" value="${v}"> ${v}</label><br>`
+                ).join('');
+                $('#variable-checkboxes').html(checkboxes);
+                $('#variable-selection').show();
+            }
+
+            $('#process-button').click(function() {
+                let selectedVariables = $('input[name="variable"]:checked').map(function() {
+                    return this.value;
+                }).get();
+
+                if (selectedVariables.length === 0) {
+                    $('#status').text('Please select at least one variable');
+                    return;
+                }
+
+                processData(mergedFilePath, selectedVariables);
+            });
+
+            function processData(filePath, selectedVariables) {
+                $('#status').text('Processing data...');
+                $.ajax({
+                    url: '/process',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({file_path: filePath, selected_variables: selectedVariables}),
                     success: function(data) {
                         $('#status').text('Data processed successfully');
                         displayVisualizations(data.visualizations);
@@ -60,9 +103,11 @@
             }
 
             function displayVisualizations(visualizations) {
-                Plotly.newPlot('heatmap', JSON.parse(visualizations.heatmap));
-                Plotly.newPlot('target-distribution', JSON.parse(visualizations.target_distribution));
-                Plotly.newPlot('feature-importance', JSON.parse(visualizations.feature_importance));
+                $('#visualizations').empty();
+                for (let [key, value] of Object.entries(visualizations)) {
+                    $('#visualizations').append(`<div id="${key}"></div>`);
+                    Plotly.newPlot(key, JSON.parse(value));
+                }
             }
         });
     </script>
