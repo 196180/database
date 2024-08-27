@@ -3,10 +3,18 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 
-def merge_files(file_paths):
+def merge_files_by_year(file_paths):
     dfs = [pd.read_csv(file_path) for file_path in file_paths]
     merged_df = pd.concat(dfs, ignore_index=True)
-    merged_file_path = 'data/raw/merged_data.csv'
+    merged_df['year'] = pd.to_datetime(merged_df['date']).dt.year  # 假设有一个 'date' 列
+    merged_file_path = 'data/raw/merged_data_by_year.csv'
+    merged_df.to_csv(merged_file_path, index=False)
+    return merged_file_path
+
+def merge_files_by_variable(file_paths):
+    dfs = [pd.read_csv(file_path) for file_path in file_paths]
+    merged_df = pd.concat(dfs, axis=1)
+    merged_file_path = 'data/raw/merged_data_by_variable.csv'
     merged_df.to_csv(merged_file_path, index=False)
     return merged_file_path
 
