@@ -25,6 +25,33 @@ python src/main.py
 
 ## 项目结构
 ```
+big-data-model/
+├── data/
+│   ├── raw/
+│   └── processed/
+├── src/
+│   ├── data/
+│   │   ├── __init__.py
+│   │   ├── data_acquisition.py
+│   │   └── data_preprocessing.py
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── model.py
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   └── helpers.py
+│   └── main.py
+├── tests/
+│   ├── __init__.py
+│   ├── test_data_acquisition.py
+│   ├── test_data_preprocessing.py
+│   └── test_model.py
+├── requirements.txt
+├── setup.py
+└── README.md
+```
+
+```
 - `data/`: 存储原始和处理后的数据
 - `src/`: 源代码
   - `data/`: 数据获取和预处理代码
