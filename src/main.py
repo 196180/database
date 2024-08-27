@@ -5,6 +5,8 @@ from utils.helpers import setup_logging, get_timestamp, create_directory_if_not_
 import pandas as pd
 import logging
 import os
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def main():
     setup_logging()
@@ -28,11 +30,33 @@ def main():
     logging.info("Preprocessing data...")
     preprocess_data(raw_data_path, processed_data_path)
     
+    # 数据可视化
+    logging.info("Generating data visualizations...")
+    df = pd.read_csv(processed_data_path)
+    create_directory_if_not_exists("visualizations")
+    
+    # 相关性热力图
+    plt.figure(figsize=(12, 10))
+    sns.heatmap(df.corr(), annot=True, cmap='coolwarm')
+    plt.title('特征相关性热力图')
+    plt.tight_layout()
+    plt.savefig('visualizations/correlation_heatmap.png')
+    plt.close()
+    
+    # 目标变量分布
+    plt.figure(figsize=(8, 6))
+    df['target'].value_counts().plot(kind='bar')
+    plt.title('目标变量分布')
+    plt.xlabel('类别')
+    plt.ylabel('数量')
+    plt.tight_layout()
+    plt.savefig('visualizations/target_distribution.png')
+    plt.close()
+    
     # 模型训练
     logging.info("Training model...")
-    df = pd.read_csv(processed_data_path)
-    X = df.drop("target_column", axis=1)
-    y = df["target_column"]
+    X = df.drop("target", axis=1)
+    y = df["target"]
     
     model = BigDataModel()
     model.train(X, y)
